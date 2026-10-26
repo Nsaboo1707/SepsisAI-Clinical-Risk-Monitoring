@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: sepsisai-api
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: ICU
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sepsisai-db
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        value: "*"
+
+  - type: web
+    name: sepsisai-dashboard
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://sepsisai-api.onrender.com
+
+databases:
+  - name: sepsisai-db
+    databaseName: sepsisai
+    user: sepsisai
+    region: singapore
+    plan: free

@@ -1147,3 +1147,104 @@ td small {
     height: 100px;
   }
 }
+
+/* API connectivity and transparent patient-history UI */
+.api-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  background: #07141e;
+}
+.api-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex: 0 0 auto;
+}
+.api-status.connected .api-status-dot {
+  background: var(--success);
+}
+.api-status.disconnected .api-status-dot {
+  background: var(--danger);
+}
+.history-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.history-row strong {
+  color: var(--text);
+  white-space: nowrap;
+  font-size: 11px;
+}
+@media (max-width: 640px) {
+  .api-status { padding: 8px 14px; }
+  .history-row { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
+
+
+.risk-history-chart {
+  min-height: 225px;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 22px 18px 12px;
+  border-top: 1px solid var(--border);
+}
+.risk-history-point {
+  min-width: 42px;
+  flex: 1 0 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.risk-history-value {
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.risk-history-bar {
+  height: 145px;
+  width: 100%;
+  max-width: 36px;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+  background: #081621;
+  border-radius: 7px 7px 0 0;
+  overflow: hidden;
+}
+.risk-history-bar > div {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 6px 6px 0 0;
+  background: var(--cyan);
+}
+.risk-history-point small {
+  color: var(--muted);
+  font-size: 9px;
+}
+.trend-empty {
+  padding: 26px 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
