@@ -1197,3 +1197,54 @@ td small {
   .api-status { padding: 8px 14px; }
   .history-row { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
+
+
+.risk-history-chart {
+  min-height: 225px;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 22px 18px 12px;
+  border-top: 1px solid var(--border);
+}
+.risk-history-point {
+  min-width: 42px;
+  flex: 1 0 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.risk-history-value {
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.risk-history-bar {
+  height: 145px;
+  width: 100%;
+  max-width: 36px;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+  background: #081621;
+  border-radius: 7px 7px 0 0;
+  overflow: hidden;
+}
+.risk-history-bar > div {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 6px 6px 0 0;
+  background: var(--cyan);
+}
+.risk-history-point small {
+  color: var(--muted);
+  font-size: 9px;
+}
+.trend-empty {
+  padding: 26px 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
