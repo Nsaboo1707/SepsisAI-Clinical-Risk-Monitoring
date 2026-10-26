@@ -1147,3 +1147,53 @@ td small {
     height: 100px;
   }
 }
+
+/* API connectivity and transparent patient-history UI */
+.api-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  background: #07141e;
+}
+.api-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex: 0 0 auto;
+}
+.api-status.connected .api-status-dot {
+  background: var(--success);
+}
+.api-status.disconnected .api-status-dot {
+  background: var(--danger);
+}
+.history-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.history-row strong {
+  color: var(--text);
+  white-space: nowrap;
+  font-size: 11px;
+}
+@media (max-width: 640px) {
+  .api-status { padding: 8px 14px; }
+  .history-row { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
