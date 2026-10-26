@@ -1,4 +1,4 @@
-from backend.main import assess_risk, category_for
+from backend.api import assess, level
 
 
 def base_vitals():
@@ -10,29 +10,26 @@ def base_vitals():
     }
 
 
-def test_low_rule_index_is_explicitly_rule_based():
-    result = assess_risk(base_vitals())
+def test_fallback_is_not_probability():
+    result = assess(base_vitals())
     assert result["risk_method"] == "threshold_rules"
     assert result["risk_level"] == "LOW"
-    assert result["model_probability"] is None
+    assert result["is_probability"] is False
     assert "not a probability" in result["warning"]
 
 
-def test_multiple_thresholds_raise_index_and_explain_factors():
-    vitals = base_vitals()
-    vitals.update({
-        "heart_rate": 125, "systolic_bp": 85, "spo2": 88,
-        "respiratory_rate": 30, "temperature": 39.0, "lactate": 4.0,
-    })
-    result = assess_risk(vitals)
-    assert result["rule_count"] == 6
+def test_all_thresholds_raises_high_index():
+    data = base_vitals()
+    data.update({"heart_rate": 125, "systolic_bp": 85, "spo2": 88,
+                 "respiratory_rate": 30, "temperature": 39.0, "lactate": 4.0})
+    result = assess(data)
     assert result["risk_level"] == "HIGH"
-    assert result["risk_value"] == 98
-    assert len(result["explanation"]) >= 6
+    assert result["risk"] == 98
+    assert len(result["explanation"]) == 6
 
 
 def test_category_boundaries():
-    assert category_for(39.99) == "LOW"
-    assert category_for(40) == "MEDIUM"
-    assert category_for(69.99) == "MEDIUM"
-    assert category_for(70) == "HIGH"
+    assert level(39.99) == "LOW"
+    assert level(40) == "MEDIUM"
+    assert level(69.99) == "MEDIUM"
+    assert level(70) == "HIGH"
