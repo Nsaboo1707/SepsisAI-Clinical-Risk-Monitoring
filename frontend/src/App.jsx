@@ -1,5 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
+
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\\/$/, "");
+
+function normalizePatient(p) {
+  const risk = Number(p.risk ?? p.risk_value ?? 0);
+  const level = String(p.risk_level || (risk >= 70 ? "HIGH" : risk >= 40 ? "MEDIUM" : "LOW")).toUpperCase();
+  return { ...p, id: p.id || p.patient_id, hr: Number(p.hr ?? p.heart_rate ?? 0), bp: p.bp || `${p.systolic_bp ?? 0}/${p.diastolic_bp ?? 0}`, spo2: Number(p.spo2 ?? 0), rr: Number(p.rr ?? p.respiratory_rate ?? 0), temp: String(p.temp ?? `${p.temperature ?? 0}°`), lactate: String(p.lactate ?? ""), risk, risk_level: level, status: p.status || (level === "HIGH" ? "Critical" : level === "MEDIUM" ? "Watch" : "Stable") };
+}
+
+async function fetchJson(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  });
+  if (!response.ok) {
+    let detail = `Request failed (${response.status})`;
+    try { const body = await response.json(); detail = body.detail || detail; } catch { /* keep default */ }
+    throw new Error(detail);
+  }
+  return response.json();
+}
 
 /* =====================================================
    INITIAL PATIENT DATA
@@ -211,176 +232,70 @@ function App() {
 
   const [search, setSearch] = useState("");
 
+  const [apiConnected, setApiConnected] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadServerState = async () => {
+      try {
+        const [patientRows, alertRows] = await Promise.all([
+          fetchJson("/patients"),
+          fetchJson("/alerts"),
+        ]);
+        if (cancelled) return;
+        setPatients(patientRows.map(normalizePatient));
+        setAlerts(alertRows);
+        setApiConnected(true);
+      } catch (error) {
+        if (!cancelled) {
+          setApiConnected(false);
+          console.error("SepsisAI API connection failed:", error);
+        }
+      }
+    };
+    loadServerState();
+    return () => { cancelled = true; };
+  }, []);
+
   /* =====================================================
      ADD PATIENT + BACKEND PREDICTION
   ===================================================== */
 
   const addPatient = async (newPatient) => {
     try {
-      const patientId = getNextPatientId(patients);
-
-      /*
-        Convert BP:
-        "92/58" -> systolic 92
-        "92/58" -> diastolic 58
-      */
-
-      const bpParts = String(newPatient.bp || "120/80").split("/");
-
-      const systolicBP = Number(bpParts[0]) || 120;
-      const diastolicBP = Number(bpParts[1]) || 80;
-
-      /*
-        Remove degree symbol from temperature.
-        Example:
-        "38.9°" -> 38.9
-      */
-
-      const temperature = Number(
-        String(newPatient.temp || "37")
-          .replace("°", "")
-          .trim()
-      );
-
-      /* ================================================
-         SEND PATIENT DATA TO FASTAPI
-      ================================================ */
-
-      const response = await fetch(
-        "http://127.0.0.1:8000/predict",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            patient_id: patientId,
-            heart_rate: Number(newPatient.hr) || 80,
-            systolic_bp: systolicBP,
-            diastolic_bp: diastolicBP,
-            spo2: Number(newPatient.spo2) || 98,
-            respiratory_rate: Number(newPatient.rr) || 16,
-            temperature: temperature || 37,
-            lactate: Number(newPatient.lactate) || 1,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Backend returned ${response.status}`
-        );
-      }
-
-      const result = await response.json();
-
-      console.log("SepsisAI Backend Result:", result);
-
-      /* ================================================
-         CONVERT BACKEND RESULT TO UI VALUES
-      ================================================ */
-
-      const riskLevel = String(
-        result.risk_level || "LOW"
-      ).toUpperCase();
-
-      const displayRisk = getDisplayRisk(
-        result.risk_score,
-        riskLevel
-      );
-
-      let status = "Stable";
-
-      if (riskLevel === "HIGH") {
-        status = "Critical";
-      } else if (riskLevel === "MEDIUM") {
-        status = "Watch";
-      }
-
-      /* ================================================
-         CREATE PATIENT OBJECT
-      ================================================ */
-
-      const patientToAdd = {
-        ...newPatient,
-
-        id: patientId,
-
-        hr: Number(newPatient.hr) || 80,
-
-        spo2: Number(newPatient.spo2) || 98,
-
-        rr: Number(newPatient.rr) || 16,
-
-        risk: displayRisk,
-
-        status: status,
+      const [systolicBP, diastolicBP] = String(newPatient.bp || "120/80").split("/").map((part) => Number(part.trim()));
+      const payload = {
+        patient_id: getNextPatientId(patients),
+        name: String(newPatient.name || "").trim(),
+        bed: String(newPatient.bed || "").trim(),
+        heart_rate: Number(newPatient.hr),
+        systolic_bp: systolicBP,
+        diastolic_bp: diastolicBP,
+        spo2: Number(newPatient.spo2),
+        respiratory_rate: Number(newPatient.rr),
+        temperature: Number(String(newPatient.temp || "").replace("°", "").trim()),
+        lactate: Number(newPatient.lactate),
+        wbc: newPatient.wbc === "" ? undefined : Number(newPatient.wbc),
+        platelets: newPatient.platelets === "" ? undefined : Number(newPatient.platelets),
+        creatinine: newPatient.creatinine === "" ? undefined : Number(newPatient.creatinine),
+        bilirubin: newPatient.bilirubin === "" ? undefined : Number(newPatient.bilirubin),
+        hemoglobin: newPatient.hemoglobin === "" ? undefined : Number(newPatient.hemoglobin),
       };
-
-      /* ================================================
-         ADD PATIENT TO HISTORY
-      ================================================ */
-
-      setPatients((currentPatients) => [
-        ...currentPatients,
-        patientToAdd,
-      ]);
-
-      /* ================================================
-         CREATE ALERT FOR HIGH RISK PATIENT
-      ================================================ */
-
-      if (riskLevel === "HIGH") {
-        const newAlert = {
-          id: Date.now(),
-
-          title: "High sepsis risk detected",
-
-          patient: patientId,
-
-          bed: newPatient.bed,
-
-          time: new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-
-          severity: "critical",
-
-          message:
-            `The SepsisAI prediction system identified a high-risk patient. ` +
-            `Risk score: ${result.risk_score}. Clinical review is recommended.`,
-        };
-
-        setAlerts((currentAlerts) => [
-          newAlert,
-          ...currentAlerts,
-        ]);
-      }
-
-      /* ================================================
-         CLOSE MODAL
-      ================================================ */
-
+      Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+      const result = await fetchJson("/patients", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const patientToAdd = normalizePatient(result);
+      setPatients((current) => [...current.filter((p) => p.id !== patientToAdd.id), patientToAdd]);
+      const currentAlerts = await fetchJson("/alerts");
+      setAlerts(currentAlerts);
+      setApiConnected(true);
       setShowAddPatient(false);
-
-      /* ================================================
-         OPEN NEW PATIENT DETAILS
-      ================================================ */
-
       setSelectedPatient(patientToAdd);
-
     } catch (error) {
-      console.error(
-        "Error connecting to SepsisAI backend:",
-        error
-      );
-
-      alert(
-        "Unable to connect to the SepsisAI backend.\n\n" +
-        "Make sure FastAPI is running at:\n" +
-        "http://127.0.0.1:8000"
-      );
+      console.error("Could not create patient:", error);
+      alert("Unable to save this patient. Check that the SepsisAI API is running and review the error in the browser console.\n\n" + error.message);
     }
   };
 
@@ -388,14 +303,17 @@ function App() {
      DISMISS ALERT
   ===================================================== */
 
-  const dismissAlert = (alertId) => {
-    setAlerts((currentAlerts) =>
-      currentAlerts.filter(
-        (alert) => alert.id !== alertId
-      )
-    );
-
-    setSelectedAlert(null);
+  const dismissAlert = async (alertId) => {
+    try {
+      await fetchJson(`/alerts/${alertId}/review`, { method: "PATCH" });
+      const refreshed = await fetchJson("/alerts");
+      setAlerts(refreshed);
+    } catch (error) {
+      console.error("Could not update alert review status:", error);
+      alert("Unable to update alert status: " + error.message);
+    } finally {
+      setSelectedAlert(null);
+    }
   };
 
   return (
@@ -523,6 +441,11 @@ function App() {
       ================================================= */}
 
       <main className="main-content">
+
+        <div className={`api-status ${apiConnected ? "connected" : "disconnected"}`} role="status">
+          <span className="api-status-dot"></span>
+          {apiConnected ? "API connected · prototype/demo data may be shown" : "API disconnected · showing local sample data"}
+        </div>
 
         <header className="topbar">
 
@@ -1373,6 +1296,15 @@ function AlertsPage({
 ===================================================== */
 
 function AnalyticsPage() {
+  const [summary, setSummary] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    fetchJson("/analytics/summary")
+      .then((data) => { if (!cancelled) setSummary(data); })
+      .catch((error) => { if (!cancelled) setLoadError(error.message); });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <section className="page">
 
@@ -1404,13 +1336,8 @@ function AnalyticsPage() {
             AVERAGE RISK
           </p>
 
-          <strong>
-            51%
-          </strong>
-
-          <span>
-            ↑ 4% from previous period
-          </span>
+          <strong>{summary ? `${summary.average_risk_index}` : "—"}</strong>
+          <span>Average risk index (not a probability)</span>
 
         </div>
 
@@ -1420,34 +1347,29 @@ function AnalyticsPage() {
             HIGH-RISK CASES
           </p>
 
-          <strong>
-            02
-          </strong>
-
-          <span>
-            Require clinical review
-          </span>
+          <strong>{summary ? String(summary.high_risk).padStart(2, "0") : "—"}</strong>
+          <span>Require clinical review</span>
 
         </div>
 
         <div className="panel analytics-card">
 
-          <p className="panel-label">
-            MODEL CONFIDENCE
-          </p>
-
-          <strong>
-            94.2%
-          </strong>
-
-          <span>
-            Current prediction confidence
-          </span>
+          <p className="panel-label">ACTIVE ALERTS</p>
+          <strong>{summary ? summary.active_alerts : "—"}</strong>
+          <span>{summary ? `${summary.total_patients} patient records · ${summary.demo_records} demo` : "Loading analytics"}</span>
 
         </div>
 
       </div>
 
+      {summary && (
+        <div className="analytics-grid" style={{ marginTop: 16 }}>
+          <div className="panel analytics-card"><p className="panel-label">TOTAL PATIENTS</p><strong>{summary.total_patients}</strong><span>Stored records</span></div>
+          <div className="panel analytics-card"><p className="panel-label">MEDIUM-RISK</p><strong>{summary.medium_risk}</strong><span>Risk-index category</span></div>
+          <div className="panel analytics-card"><p className="panel-label">LOW-RISK</p><strong>{summary.low_risk}</strong><span>Risk-index category</span></div>
+        </div>
+      )}
+      {loadError && <p role="status">Analytics API unavailable: {loadError}</p>}
       <div className="panel analytics-chart">
 
         <div className="panel-header">
@@ -1746,14 +1668,8 @@ function AddPatientModal({
   onAdd,
 }) {
   const [form, setForm] = useState({
-    name: "",
-    bed: "",
-    hr: "",
-    bp: "",
-    spo2: "",
-    rr: "",
-    temp: "",
-    lactate: "",
+    name: "", bed: "", hr: "", bp: "", spo2: "", rr: "", temp: "", lactate: "",
+    wbc: "", platelets: "", creatinine: "", bilirubin: "", hemoglobin: "",
   });
 
   const [submitting, setSubmitting] =
@@ -1964,22 +1880,34 @@ function AddPatientModal({
             </label>
 
             <label>
-
               Lactate
-
-              <input
-                type="number"
-                step="0.1"
-                value={form.lactate}
-                onChange={(e) =>
-                  update(
-                    "lactate",
-                    e.target.value
-                  )
-                }
-                placeholder="mmol/L"
-              />
-
+              <input type="number" step="0.1" value={form.lactate}
+                onChange={(e) => update("lactate", e.target.value)} placeholder="mmol/L" />
+            </label>
+            <label>
+              WBC count <small>(optional)</small>
+              <input type="number" step="0.1" value={form.wbc}
+                onChange={(e) => update("wbc", e.target.value)} placeholder="cells / unit" />
+            </label>
+            <label>
+              Platelets <small>(optional)</small>
+              <input type="number" step="0.1" value={form.platelets}
+                onChange={(e) => update("platelets", e.target.value)} placeholder="count" />
+            </label>
+            <label>
+              Creatinine <small>(optional)</small>
+              <input type="number" step="0.1" value={form.creatinine}
+                onChange={(e) => update("creatinine", e.target.value)} placeholder="mg/dL" />
+            </label>
+            <label>
+              Bilirubin <small>(optional)</small>
+              <input type="number" step="0.1" value={form.bilirubin}
+                onChange={(e) => update("bilirubin", e.target.value)} placeholder="mg/dL" />
+            </label>
+            <label>
+              Hemoglobin <small>(optional)</small>
+              <input type="number" step="0.1" value={form.hemoglobin}
+                onChange={(e) => update("hemoglobin", e.target.value)} placeholder="g/dL" />
             </label>
 
           </div>
@@ -2001,9 +1929,7 @@ function AddPatientModal({
             </div>
 
             <p>
-              SepsisAI will calculate the patient's
-              risk using the connected prediction backend
-              when you add the patient.
+              The backend records the assessment and its method. Optional lab values allow the experimental model path when available; otherwise a rule-based index is shown. This prototype is not clinically validated and is not for medical decisions.
             </p>
 
           </div>
@@ -2049,6 +1975,14 @@ function PatientDetails({
   patient,
   onClose,
 }) {
+  const [history, setHistory] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchJson(`/patients/${encodeURIComponent(patient.id)}/history`)
+      .then((rows) => { if (!cancelled) setHistory(rows); })
+      .catch((error) => console.warn("History unavailable:", error.message));
+    return () => { cancelled = true; };
+  }, [patient.id]);
   return (
     <div className="modal-overlay">
 
@@ -2132,14 +2066,27 @@ function PatientDetails({
           </strong>
 
           <p>
-            Current model assessment based on
-            available patient observations.
+            Method: {patient.risk_method || "demo/sample"}. A rule-based risk index is not a probability; this research prototype has not been clinically validated.
           </p>
 
           <span>
             STATUS: {patient.status}
           </span>
 
+        </div>
+
+        <div className="review-section">
+          <h4>Recent assessment history</h4>
+          {history.length === 0 ? <p>No saved assessment history yet.</p> : (
+            <div className="history-list">
+              {history.slice(0, 5).map((item) => (
+                <div className="history-row" key={item.id || item.created_at}>
+                  <span>{item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded assessment"}</span>
+                  <strong>{item.risk} {item.risk_method === "threshold_rules" ? "index" : "score"} · {item.risk_level}</strong>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="modal-actions">
