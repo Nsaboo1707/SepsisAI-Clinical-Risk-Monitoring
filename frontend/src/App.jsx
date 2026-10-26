@@ -471,7 +471,7 @@ function App() {
 
             <div className="date-display">
 
-              Tuesday, September 6, 2026
+              Current session
 
               <strong>
                 20:42
@@ -651,7 +651,7 @@ function Overview({
         <div>
 
           <p className="date-label">
-            TUESDAY, SEPTEMBER 6, 2026 · 20:42 LOCAL TIME
+            CURRENT SESSION · LOCAL TIME
           </p>
 
           <h3>
@@ -1297,11 +1297,12 @@ function AlertsPage({
 
 function AnalyticsPage() {
   const [summary, setSummary] = useState(null);
+  const [trend, setTrend] = useState([]);
   const [loadError, setLoadError] = useState("");
   useEffect(() => {
     let cancelled = false;
-    fetchJson("/analytics/summary")
-      .then((data) => { if (!cancelled) setSummary(data); })
+    Promise.all([fetchJson("/analytics/summary"), fetchJson("/analytics/trend")])
+      .then(([data, trendRows]) => { if (!cancelled) { setSummary(data); setTrend(trendRows); } })
       .catch((error) => { if (!cancelled) setLoadError(error.message); });
     return () => { cancelled = true; };
   }, []);
@@ -1381,21 +1382,26 @@ function AnalyticsPage() {
             </p>
 
             <h4>
-              Sepsis risk over time
+              Saved risk-index assessments
             </h4>
 
           </div>
 
         </div>
 
-        <div className="large-chart">
-
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-
-        </div>
+        {trend.length === 0 ? (
+          <p className="trend-empty">No saved assessments available yet. Add a patient or record a new observation to build this chart.</p>
+        ) : (
+          <div className="risk-history-chart" role="img" aria-label="Risk index history for recent saved assessments">
+            {trend.map((point, index) => (
+              <div className="risk-history-point" key={`${point.patient_id}-${point.label}-${index}`} title={`${point.patient_id}: index ${point.risk}/100 · ${point.risk_level}`}>
+                <span className="risk-history-value">{Math.round(point.risk)}</span>
+                <div className="risk-history-bar"><div style={{ height: `${Math.max(4, Math.min(100, point.risk))}%` }} /></div>
+                <small>{point.label}</small>
+              </div>
+            ))}
+          </div>
+        )}
 
       </div>
 
@@ -1622,7 +1628,7 @@ function PatientTable({
                       : ""
                   }`}
                 >
-                  {patient.risk}%
+                  {Math.round(patient.risk)}/100
                 </span>
 
               </td>
@@ -2062,7 +2068,7 @@ function PatientDetails({
           </span>
 
           <strong>
-            {patient.risk}%
+            {Math.round(patient.risk)}/100
           </strong>
 
           <p>
