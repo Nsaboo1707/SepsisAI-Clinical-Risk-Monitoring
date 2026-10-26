@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\\/$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 function normalizePatient(p) {
   const risk = Number(p.risk ?? p.risk_value ?? 0);
@@ -465,7 +465,7 @@ function App() {
 
               <span className="live-dot"></span>
 
-              Live monitoring
+              Demo monitoring view
 
             </div>
 
@@ -709,9 +709,9 @@ function Overview({
         />
 
         <MetricCard
-          label="AVERAGE SEPSIS RISK"
-          value="51%"
-          description="↑ 4% from 6 hours ago"
+          label="AVERAGE RISK INDEX"
+          value={patients.length ? Math.round(patients.reduce((sum, p) => sum + Number(p.risk || 0), 0) / patients.length) : "—"}
+          description="Index out of 100; not a probability"
           tone="cyan"
         />
 
@@ -732,13 +732,13 @@ function Overview({
               </p>
 
               <h4>
-                Average sepsis risk
+                Sample risk trend (illustrative)
               </h4>
 
             </div>
 
             <span className="chart-label">
-              Last 6 hours
+              Demo visualization
             </span>
 
           </div>
@@ -925,7 +925,7 @@ function Overview({
                         : ""
                     }`}
                   >
-                    {patient.risk}%
+                    {Math.round(patient.risk)}/100
                   </span>
 
                   <span>›</span>
@@ -1009,7 +1009,7 @@ function Overview({
 
             <span>
               <i className="status-dot"></i>
-              Telemetry connected
+              Demo telemetry status
             </span>
 
             <strong>
@@ -1022,11 +1022,11 @@ function Overview({
 
             <span>
               <i className="status-dot"></i>
-              Data freshness
+              Sample data freshness
             </span>
 
             <strong>
-              &lt; 30 sec
+              Demo
             </strong>
 
           </div>
@@ -1534,7 +1534,7 @@ function PatientTable({
             <th>RR</th>
             <th>TEMP</th>
             <th>LACTATE</th>
-            <th>SEPSIS RISK</th>
+            <th>RISK INDEX / 100</th>
             <th>STATUS</th>
 
           </tr>
@@ -2058,7 +2058,7 @@ function PatientDetails({
         <div className="patient-risk-box">
 
           <span>
-            AI SEPSIS RISK
+            RISK INDEX / 100
           </span>
 
           <strong>
