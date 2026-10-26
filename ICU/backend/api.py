@@ -429,6 +429,19 @@ def analytics(db: Session = Depends(db_session)):
     }
 
 
+@app.get("/analytics/trend")
+def analytics_trend(db: Session = Depends(db_session)):
+    rows = db.query(Observation).order_by(Observation.created_at.desc()).limit(12).all()
+    rows.reverse()
+    return [{
+        "label": o.created_at.astimezone().strftime("%H:%M") if o.created_at else "",
+        "risk": round(float(o.risk), 2),
+        "risk_level": o.risk_level,
+        "risk_method": o.risk_method,
+        "patient_id": o.patient_id,
+    } for o in rows]
+
+
 @app.post("/predict")
 def predict(payload: Vitals, db: Session = Depends(db_session)):
     data = payload.model_dump()
